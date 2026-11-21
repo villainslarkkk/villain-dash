@@ -1,0 +1,55 @@
+name: Build VillainDash IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Bundle Three.js locally for offline play
+        run: |
+          curl -L https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js -o www/three.min.js
+          sed -i '' 's|https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js|three.min.js|g' www/index.html
+
+      - name: Initialize Capacitor and Add iOS
+        run: |
+          npm init -y
+          npm install @capacitor/core@8 @capacitor/cli@8 @capacitor/ios@8
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Build Unsigned iOS App
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package VillainDash.ipa
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r VillainDash.ipa Payload
+
+      - name: Upload VillainDash.ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VillainDash-IPA
+          path: VillainDash.ipa
